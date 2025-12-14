@@ -1,0 +1,16 @@
+# IDEs and Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Dependencies (if you add any in the future)
+node_modules/
+package-lock.json
+yarn.lock
