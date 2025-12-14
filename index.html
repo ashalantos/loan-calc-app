@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Home Loan Calculator</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Home Loan Calculator</h1>
+            <p class="subtitle">Calculate your loan EMI and find the best repayment option</p>
+        </header>
+
+        <!-- Navigation Tabs -->
+        <nav class="tabs">
+            <button class="tab-btn active" data-tab="tab1">EMI Calculator</button>
+            <button class="tab-btn" data-tab="tab2">Remaining Loan</button>
+            <button class="tab-btn" data-tab="tab3">Reports & Charts</button>
+        </nav>
+
+        <!-- Tab 1: EMI Calculator -->
+        <section id="tab1" class="tab-content active">
+            <div class="card">
+                <h2>Basic EMI Calculator</h2>
+                <div class="form-group">
+                    <label for="principal1">Principal Amount (₹)</label>
+                    <input type="number" id="principal1" placeholder="Enter principal amount" min="0" step="1000">
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="interest1">Annual Interest Rate (%)</label>
+                        <input type="number" id="interest1" placeholder="Enter interest rate" min="0" max="100" step="0.01">
+                    </div>
+                    <div class="form-group">
+                        <label>Loan Duration</label>
+                        <div class="duration-input-group">
+                            <div class="duration-item">
+                                <input type="number" id="years1" placeholder="Years" min="0" max="50" step="1">
+                                <span class="duration-label">Years</span>
+                            </div>
+                            <div class="duration-item">
+                                <input type="number" id="months1" placeholder="Months" min="0" max="11" step="1">
+                                <span class="duration-label">Months</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <button class="btn btn-primary" onclick="calculateTab1()">Calculate EMI</button>
+
+                <!-- Results Section -->
+                <div id="tab1Results" class="results-section" style="display: none;">
+                    <div class="result-box">
+                        <h3>Your Monthly EMI</h3>
+                        <p class="emi-value" id="emiValue">₹0</p>
+                        <div class="emi-breakdown">
+                            <div class="breakdown-item">
+                                <span>To Principal</span>
+                                <span id="avgPrincipal">₹0</span>
+                            </div>
+                            <div class="breakdown-item">
+                                <span>To Interest</span>
+                                <span id="avgInterest">₹0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Report Link -->
+                    <div class="report-link-section">
+                        <button class="btn btn-info" onclick="generateAmortizationReport()">📋 View Amortization Report</button>
+                    </div>
+
+                    <!-- EMI Comparison Table -->
+                    <div class="comparison-section">
+                        <h3>EMI Comparison for Different Durations</h3>
+                        <div class="table-responsive">
+                            <table class="emi-table" id="emiComparisonTable">
+                                <thead>
+                                    <tr>
+                                        <th>Duration</th>
+                                        <th>Monthly EMI</th>
+                                        <th>Total Interest</th>
+                                        <th>Total Amount</th>
+                                        <th>Report</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="emiTableBody">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Best Option -->
+                    <div class="best-option">
+                        <h3>💡 Best Option</h3>
+                        <div id="bestOptionTab1" class="option-card"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tab 2: Remaining Loan Calculator -->
+        <section id="tab2" class="tab-content">
+            <div class="card">
+                <h2>Remaining Loan Calculator</h2>
+                <p class="info-text">Calculate EMI on remaining loan and explore additional payment options</p>
+
+                <div class="form-group">
+                    <label for="currentPrincipal">Current Outstanding Principal (₹)</label>
+                    <input type="number" id="currentPrincipal" placeholder="Enter current principal" min="0" step="1000">
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="currentInterest">Annual Interest Rate (%)</label>
+                        <input type="number" id="currentInterest" placeholder="Enter interest rate" min="0" max="100" step="0.01">
+                    </div>
+                    <div class="form-group">
+                        <label for="currentEmi">Current EMI (₹)</label>
+                        <input type="number" id="currentEmi" placeholder="Enter current EMI" min="0" step="100">
+                    </div>
+                </div>
+
+                <button class="btn btn-primary" onclick="calculateTab2()">Calculate Remaining Loan</button>
+
+                <!-- Results Section -->
+                <div id="tab2Results" class="results-section" style="display: none;">
+                    <div class="info-box">
+                        <p><strong>Current EMI:</strong> <span id="currentEmiDisplay">₹0</span></p>
+                        <p><strong>Years to Complete:</strong> <span id="yearsToComplete">0</span> years</p>
+                    </div>
+
+                    <!-- Additional Payment Section -->
+                    <div class="additional-payment-section">
+                        <h3>Pay Additional Amount</h3>
+                        <div class="form-group">
+                            <label for="additionalPayment">Additional EMI Amount (₹)</label>
+                            <input type="number" id="additionalPayment" placeholder="Enter additional amount to pay" min="0" step="100">
+                        </div>
+                        <button class="btn btn-secondary" onclick="calculateAdditionalPayment()">Calculate Impact</button>
+                    </div>
+
+                    <!-- Comparison Results -->
+                    <div id="additionalResults" class="comparison-section" style="display: none;">
+                        <h3>Impact of Additional Payment</h3>
+                        <div class="comparison-cards">
+                            <div class="comparison-card">
+                                <h4>With Current EMI</h4>
+                                <p>Monthly Payment: <span id="originalEmiAmount">₹0</span></p>
+                                <p>Time to Complete: <span id="originalYears">0</span> years</p>
+                                <p>Total Interest: <span id="originalInterest">₹0</span></p>
+                            </div>
+
+                            <div class="comparison-card arrow">
+                                <span class="arrow-icon">→</span>
+                            </div>
+
+                            <div class="comparison-card">
+                                <h4>With Additional Payment</h4>
+                                <p>Monthly Payment: <span id="newEmiAmount">₹0</span></p>
+                                <p>Time to Complete: <span id="newYears">0</span> years</p>
+                                <p>Total Interest: <span id="newInterest">₹0</span></p>
+                            </div>
+                        </div>
+
+                        <!-- Best Option Recommendation -->
+                        <div class="best-option">
+                            <h3>💡 Recommendation</h3>
+                            <div id="bestOptionTab2" class="option-card"></div>
+                        </div>
+
+                        <!-- Report Buttons -->
+                        <div class="report-buttons-section">
+                            <h3>View Detailed Reports</h3>
+                            <div class="report-buttons">
+                                <button class="btn btn-info" onclick="generateRemainingLoanReport('current')">📋 Current EMI Report</button>
+                                <button class="btn btn-info" onclick="generateRemainingLoanReport('additional')">📋 Additional Payment Report</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tab 3: Reports & Charts -->
+        <section id="tab3" class="tab-content">
+            <div class="card">
+                <h2>Amortization Report</h2>
+                
+                <!-- Report Info Section -->
+                <div id="reportInfo" class="report-info" style="display: none;">
+                    <div class="report-summary">
+                        <div class="summary-item">
+                            <label>Principal Amount</label>
+                            <span id="reportPrincipal">₹0</span>
+                        </div>
+                        <div class="summary-item">
+                            <label>Annual Interest Rate</label>
+                            <span id="reportRate">0%</span>
+                        </div>
+                        <div class="summary-item">
+                            <label>Monthly EMI</label>
+                            <span id="reportEmi">₹0</span>
+                        </div>
+                        <div class="summary-item">
+                            <label>Total Duration</label>
+                            <span id="reportDuration">0 years</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Report Table -->
+                <div id="reportTable" class="report-table-section" style="display: none;">
+                    <div class="table-responsive">
+                        <table class="report-table">
+                            <thead>
+                                <tr>
+                                    <th>Month/Year</th>
+                                    <th>EMI Paid</th>
+                                    <th>To Interest</th>
+                                    <th>To Principal</th>
+                                    <th>Remaining Principal</th>
+                                    <th>Remaining Interest</th>
+                                </tr>
+                            </thead>
+                            <tbody id="reportTableBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- No Report Message -->
+                <div id="noReport" class="placeholder-content">
+                    <div class="placeholder-icon">📊</div>
+                    <h3>No Report Generated</h3>
+                    <p>Calculate an EMI in the EMI Calculator tab and click "View Amortization Report" to generate a detailed report</p>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <footer>
+        <p>&copy; 2025 Home Loan Calculator. All rights reserved.</p>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
