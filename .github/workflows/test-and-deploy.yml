@@ -19,7 +19,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '18'
-          cache: 'npm'
 
       - name: Create package.json
         run: |
@@ -116,8 +115,18 @@ jobs:
           
           test.describe('Home Loan Calculator App', () => {
             test.beforeEach(async ({ page }) => {
-              await page.goto('https://ashalantos.github.io/loan-calc-app/');
-              await page.waitForLoadState('networkidle');
+              // Wait for app to be available
+              let retries = 0;
+              while (retries < 30) {
+                try {
+                  await page.goto('https://ashalantos.github.io/loan-calc-app/', { waitUntil: 'networkidle', timeout: 5000 });
+                  break;
+                } catch (e) {
+                  retries++;
+                  if (retries >= 30) throw e;
+                  await page.waitForTimeout(1000);
+                }
+              }
             });
           
             test('Test 1: EMI Calculator - Calculate and Verify Results', async ({ page }) => {
@@ -126,7 +135,7 @@ jobs:
               await page.fill('#years1', '20');
               await page.fill('#months1', '0');
               await page.click('button:has-text("Calculate EMI")');
-              await page.waitForSelector('#tab1Results');
+              await page.waitForSelector('#tab1Results', { timeout: 10000 });
               
               const emiValue = await page.locator('#emiValue').textContent();
               expect(emiValue).toContain('₹');
@@ -151,13 +160,13 @@ jobs:
           
             test('Test 2: Remaining Loan Calculator - Calculate and Verify Impact', async ({ page }) => {
               await page.click('[data-tab="tab2"]');
-              await page.waitForSelector('#tab2', { state: 'visible' });
+              await page.waitForSelector('#tab2', { state: 'visible', timeout: 5000 });
               
               await page.fill('#currentPrincipal', '3000000');
               await page.fill('#currentInterest', '7.5');
               await page.fill('#currentEmi', '25000');
               await page.click('button:has-text("Calculate Remaining Loan")');
-              await page.waitForSelector('#tab2Results');
+              await page.waitForSelector('#tab2Results', { timeout: 10000 });
               
               const currentEmiDisplay = await page.locator('#currentEmiDisplay').textContent();
               expect(currentEmiDisplay).toContain('₹');
@@ -167,7 +176,7 @@ jobs:
               
               await page.fill('#additionalPayment', '5000');
               await page.click('button:has-text("Calculate Impact")');
-              await page.waitForSelector('#additionalResults');
+              await page.waitForSelector('#additionalResults', { timeout: 10000 });
               
               const originalEmiAmount = await page.locator('#originalEmiAmount').textContent();
               const newEmiAmount = await page.locator('#newEmiAmount').textContent();
@@ -191,13 +200,13 @@ jobs:
               await page.fill('#years1', '15');
               await page.fill('#months1', '0');
               await page.click('button:has-text("Calculate EMI")');
-              await page.waitForSelector('#tab1Results');
+              await page.waitForSelector('#tab1Results', { timeout: 10000 });
               
               const reportButtons = await page.locator('.btn-report');
               const firstReportButton = reportButtons.first();
               await firstReportButton.click();
               
-              await page.waitForSelector('#tab3.active', { timeout: 5000 });
+              await page.waitForSelector('#tab3.active', { timeout: 10000 });
               
               const reportPrincipal = await page.locator('#reportPrincipal').textContent();
               const reportRate = await page.locator('#reportRate').textContent();
@@ -232,14 +241,14 @@ jobs:
           EOF
 
       - name: Install dependencies
-        run: npm install
-
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps
+        run: |
+          npm install @playwright/test@latest --save-dev --legacy-peer-deps
+          npx playwright install --with-deps
 
       - name: Run Playwright tests
-        run: npm test
+        run: npx playwright test
         continue-on-error: true
+        timeout-minutes: 15
 
       - name: Create test results directory
         if: always()
