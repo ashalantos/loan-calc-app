@@ -1,0 +1,303 @@
+name: Test and Deploy
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  generate-and-test:
+    name: Generate Tests & Run Test Suite
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Create package.json
+        run: |
+          cat > package.json << 'EOF'
+          {
+            "name": "loan-calc-app-tests",
+            "version": "1.0.0",
+            "description": "Playwright tests for Home Loan Calculator App",
+            "scripts": {
+              "test": "playwright test",
+              "test:headed": "playwright test --headed",
+              "test:report": "playwright show-report"
+            },
+            "dependencies": {
+              "@playwright/test": "^1.40.0"
+            }
+          }
+          EOF
+
+      - name: Create playwright.config.ts
+        run: |
+          cat > playwright.config.ts << 'EOF'
+          import { defineConfig, devices } from '@playwright/test';
+          
+          export default defineConfig({
+            testDir: './tests',
+            fullyParallel: true,
+            forbidOnly: !!process.env.CI,
+            retries: process.env.CI ? 2 : 0,
+            workers: process.env.CI ? 1 : undefined,
+            reporter: [
+              ['html'],
+              ['junit', { outputFile: 'test-results/junit.xml' }],
+              ['json', { outputFile: 'test-results/results.json' }],
+              ['list']
+            ],
+            use: {
+              trace: 'on-first-retry',
+              screenshot: 'only-on-failure',
+              video: 'retain-on-failure',
+            },
+            projects: [
+              {
+                name: 'chromium',
+                use: { ...devices['Desktop Chrome'] },
+              },
+              {
+                name: 'firefox',
+                use: { ...devices['Desktop Firefox'] },
+              },
+              {
+                name: 'webkit',
+                use: { ...devices['Desktop Safari'] },
+              },
+              {
+                name: 'Mobile Chrome',
+                use: { ...devices['Pixel 5'] },
+              },
+              {
+                name: 'Mobile Safari',
+                use: { ...devices['iPhone 12'] },
+              },
+            ],
+          });
+          EOF
+
+      - name: Generate Playwright Tests from Specifications
+        run: |
+          mkdir -p tests
+          cat > tests/calculator.spec.ts << 'EOF'
+          import { test, expect } from '@playwright/test';
+          
+          test.describe('Home Loan Calculator App', () => {
+            test.beforeEach(async ({ page }) => {
+              await page.goto('https://ashalantos.github.io/loan-calc-app/');
+              await page.waitForLoadState('networkidle');
+            });
+          
+            test('Test 1: EMI Calculator - Calculate and Verify Results', async ({ page }) => {
+              await page.fill('#principal1', '5000000');
+              await page.fill('#interest1', '7.5');
+              await page.fill('#years1', '20');
+              await page.fill('#months1', '0');
+              await page.click('button:has-text("Calculate EMI")');
+              await page.waitForSelector('#tab1Results');
+              
+              const emiValue = await page.locator('#emiValue').textContent();
+              expect(emiValue).toContain('₹');
+              
+              const emiNumberMatch = emiValue.match(/\d+/);
+              expect(parseInt(emiNumberMatch[0])).toBeGreaterThan(0);
+              
+              const avgPrincipal = await page.locator('#avgPrincipal').textContent();
+              const avgInterest = await page.locator('#avgInterest').textContent();
+              
+              expect(avgPrincipal).toContain('₹');
+              expect(avgInterest).toContain('₹');
+              
+              const comparisonTable = await page.locator('#emiComparisonTable');
+              await expect(comparisonTable).toBeVisible();
+              
+              const bestOption = await page.locator('#bestOptionTab1').textContent();
+              expect(bestOption.length).toBeGreaterThan(0);
+              
+              console.log('✅ Test 1 Passed: EMI Calculator works correctly');
+            });
+          
+            test('Test 2: Remaining Loan Calculator - Calculate and Verify Impact', async ({ page }) => {
+              await page.click('[data-tab="tab2"]');
+              await page.waitForSelector('#tab2', { state: 'visible' });
+              
+              await page.fill('#currentPrincipal', '3000000');
+              await page.fill('#currentInterest', '7.5');
+              await page.fill('#currentEmi', '25000');
+              await page.click('button:has-text("Calculate Remaining Loan")');
+              await page.waitForSelector('#tab2Results');
+              
+              const currentEmiDisplay = await page.locator('#currentEmiDisplay').textContent();
+              expect(currentEmiDisplay).toContain('₹');
+              
+              const yearsToComplete = await page.locator('#yearsToComplete').textContent();
+              expect(parseFloat(yearsToComplete)).toBeGreaterThan(0);
+              
+              await page.fill('#additionalPayment', '5000');
+              await page.click('button:has-text("Calculate Impact")');
+              await page.waitForSelector('#additionalResults');
+              
+              const originalEmiAmount = await page.locator('#originalEmiAmount').textContent();
+              const newEmiAmount = await page.locator('#newEmiAmount').textContent();
+              
+              expect(originalEmiAmount).toContain('₹');
+              expect(newEmiAmount).toContain('₹');
+              
+              const originalValue = parseInt(originalEmiAmount.match(/\d+/)[0]);
+              const newValue = parseInt(newEmiAmount.match(/\d+/)[0]);
+              expect(newValue).toBeGreaterThan(originalValue);
+              
+              const recommendation = await page.locator('#bestOptionTab2').textContent();
+              expect(recommendation.length).toBeGreaterThan(0);
+              
+              console.log('✅ Test 2 Passed: Remaining Loan Calculator works correctly');
+            });
+          
+            test('Test 3: Amortization Report - Generate and Verify Table', async ({ page }) => {
+              await page.fill('#principal1', '4000000');
+              await page.fill('#interest1', '8');
+              await page.fill('#years1', '15');
+              await page.fill('#months1', '0');
+              await page.click('button:has-text("Calculate EMI")');
+              await page.waitForSelector('#tab1Results');
+              
+              const reportButtons = await page.locator('.btn-report');
+              const firstReportButton = reportButtons.first();
+              await firstReportButton.click();
+              
+              await page.waitForSelector('#tab3.active', { timeout: 5000 });
+              
+              const reportPrincipal = await page.locator('#reportPrincipal').textContent();
+              const reportRate = await page.locator('#reportRate').textContent();
+              const reportEmi = await page.locator('#reportEmi').textContent();
+              const reportDuration = await page.locator('#reportDuration').textContent();
+              
+              expect(reportPrincipal).toContain('₹');
+              expect(reportRate).toContain('%');
+              expect(reportEmi).toContain('₹');
+              expect(reportDuration).toContain('year');
+              
+              const reportTable = await page.locator('.report-table');
+              await expect(reportTable).toBeVisible();
+              
+              const tableRows = await page.locator('.report-table tbody tr');
+              const rowCount = await tableRows.count();
+              expect(rowCount).toBeGreaterThan(0);
+              
+              const firstRow = tableRows.first();
+              const cells = await firstRow.locator('td');
+              const cellCount = await cells.count();
+              expect(cellCount).toBe(6);
+              
+              for (let i = 0; i < cellCount; i++) {
+                const cellText = await cells.nth(i).textContent();
+                expect(cellText.trim().length).toBeGreaterThan(0);
+              }
+              
+              console.log('✅ Test 3 Passed: Amortization Report generates correctly with all columns');
+            });
+          });
+          EOF
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: Run Playwright tests
+        run: npm test
+        continue-on-error: true
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 30
+
+      - name: Upload JUnit results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-results-xml
+          path: test-results/
+          retention-days: 30
+
+      - name: Publish test report
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: 'Playwright Test Results'
+          path: 'test-results/junit.xml'
+          reporter: 'java-junit'
+          fail-on-error: false
+
+      - name: Check test results
+        run: |
+          if [ -f "test-results/junit.xml" ]; then
+            if grep -q 'failures="0"' test-results/junit.xml && grep -q 'errors="0"' test-results/junit.xml; then
+              echo "✅ All tests passed! Proceeding with deployment..."
+              exit 0
+            else
+              echo "❌ Tests failed! Deployment blocked."
+              exit 1
+            fi
+          else
+            echo "❌ Test results file not found! Deployment blocked."
+            exit 1
+          fi
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: generate-and-test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v3
+
+      - name: Deployment notification
+        run: |
+          echo "🚀 Deployment successful!"
+          echo "App is live at: https://ashalantos.github.io/loan-calc-app/"
+          echo ""
+          echo "Test Summary:"
+          echo "✅ EMI Calculator - PASSED"
+          echo "✅ Remaining Loan Calculator - PASSED"
+          echo "✅ Amortization Report - PASSED"
+          echo ""
+          echo "All tests passed and changes are now live!"
