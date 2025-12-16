@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Home Loan Calculator</title>
     <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -17,6 +18,7 @@
         <nav class="tabs">
             <button class="tab-btn active" data-tab="tab1">EMI Calculator</button>
             <button class="tab-btn" data-tab="tab2">Remaining Loan</button>
+            <button class="tab-btn" data-tab="tab4">SIP Calculator</button>
             <button class="tab-btn" data-tab="tab3">Reports & Charts</button>
         </nav>
 
@@ -50,6 +52,12 @@
                 </div>
 
                 <button class="btn btn-primary" onclick="calculateTab1()">Calculate EMI</button>
+
+                <!-- Recalculate Remaining Loan Button -->
+                <div id="recalculateSection" class="recalculate-section" style="display: none;">
+                    <button class="btn btn-success" onclick="navigateToRemainingLoanWithData()">💰 Recalculate Remaining Loan</button>
+                    <p class="button-hint">Use the calculated EMI to see how much you still owe</p>
+                </div>
 
                 <!-- Results Section -->
                 <div id="tab1Results" class="results-section" style="display: none;">
@@ -186,6 +194,126 @@
             </div>
         </section>
 
+        <!-- Tab 4: SIP Calculator -->
+        <section id="tab4" class="tab-content">
+            <div class="card">
+                <h2>SIP (Systematic Investment Plan) Calculator</h2>
+                <p class="subtitle">Calculate your investment returns with regular monthly contributions</p>
+                
+                <div class="form-group">
+                    <label for="sipAmount">Monthly SIP Amount (₹)</label>
+                    <input type="number" id="sipAmount" placeholder="Enter monthly investment amount" min="0" step="100">
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="sipRate">Expected Annual Return Rate (%)</label>
+                        <input type="number" id="sipRate" placeholder="Enter expected annual return" min="0" max="100" step="0.01">
+                    </div>
+                    <div class="form-group">
+                        <label>Investment Duration</label>
+                        <div class="duration-input-group">
+                            <div class="duration-item">
+                                <input type="number" id="sipYears" placeholder="Years" min="0" max="50" step="1">
+                                <span class="duration-label">Years</span>
+                            </div>
+                            <div class="duration-item">
+                                <input type="number" id="sipMonths" placeholder="Months" min="0" max="11" step="1">
+                                <span class="duration-label">Months</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <button class="btn btn-primary" onclick="calculateTab4()">Calculate SIP</button>
+
+                <!-- Results Section -->
+                <div id="tab4Results" class="results-section" style="display: none;">
+                    <div class="result-box">
+                        <h3>Your SIP Investment Summary</h3>
+                        <div class="sip-summary">
+                            <div class="summary-item">
+                                <span>Monthly Investment</span>
+                                <span class="highlight" id="sipDisplayAmount">₹0</span>
+                            </div>
+                            <div class="summary-item">
+                                <span>Total Invested</span>
+                                <span class="highlight" id="totalInvested">₹0</span>
+                            </div>
+                            <div class="summary-item">
+                                <span>Expected Returns</span>
+                                <span class="highlight" id="expectedReturns">₹0</span>
+                            </div>
+                            <div class="summary-item">
+                                <span>Maturity Value</span>
+                                <span class="highlight" id="maturityValue">₹0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SIP Comparison Table -->
+                    <div class="comparison-section">
+                        <h3>SIP Returns for Different Durations</h3>
+                        <div class="table-responsive">
+                            <table class="emi-table" id="sipComparisonTable">
+                                <thead>
+                                    <tr>
+                                        <th>Duration</th>
+                                        <th>Total Invested</th>
+                                        <th>Expected Returns</th>
+                                        <th>Maturity Value</th>
+                                        <th>Return %</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="sipTableBody">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Existing Amount Section -->
+                    <div class="additional-payment-section">
+                        <h3>Already Have Investments?</h3>
+                        <div class="form-group">
+                            <label for="existingSipAmount">Existing Investment Amount (₹)</label>
+                            <input type="number" id="existingSipAmount" placeholder="Enter your existing investment" min="0" step="1000">
+                        </div>
+                        <button class="btn btn-secondary" onclick="calculateWithExistingAmount()">Calculate with Existing Amount</button>
+                    </div>
+
+                    <!-- Existing Amount Results -->
+                    <div id="existingResults" class="comparison-section" style="display: none;">
+                        <h3>Combined Investment Analysis</h3>
+                        <div class="comparison-cards">
+                            <div class="comparison-card">
+                                <h4>Without Existing Amount</h4>
+                                <p>Total Invested: <span id="withoutExistingInvested">₹0</span></p>
+                                <p>Expected Returns: <span id="withoutExistingReturns">₹0</span></p>
+                                <p>Maturity Value: <span id="withoutExistingMaturity">₹0</span></p>
+                            </div>
+
+                            <div class="comparison-card arrow">
+                                <span class="arrow-icon">→</span>
+                            </div>
+
+                            <div class="comparison-card">
+                                <h4>With Existing Amount</h4>
+                                <p>Total Invested: <span id="withExistingInvested">₹0</span></p>
+                                <p>Expected Returns: <span id="withExistingReturns">₹0</span></p>
+                                <p>Maturity Value: <span id="withExistingMaturity">₹0</span></p>
+                            </div>
+                        </div>
+
+                        <!-- Best Option -->
+                        <div class="best-option">
+                            <h3>💡 Recommendation</h3>
+                            <div id="bestOptionTab4" class="option-card"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
         <!-- Tab 3: Reports & Charts -->
         <section id="tab3" class="tab-content">
             <div class="card">
@@ -230,6 +358,14 @@
                             <tbody id="reportTableBody">
                             </tbody>
                         </table>
+                    </div>
+                </div>
+
+                <!-- EMI Comparison Chart -->
+                <div id="reportChart" class="report-chart-section" style="display: none;">
+                    <h3>Remaining Principal vs Time Chart</h3>
+                    <div class="chart-container">
+                        <canvas id="emiComparisonChart"></canvas>
                     </div>
                 </div>
 

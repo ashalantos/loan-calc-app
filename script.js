@@ -233,6 +233,7 @@ function calculateTab1() {
 
     // Show results
     document.getElementById('tab1Results').style.display = 'block';
+    document.getElementById('recalculateSection').style.display = 'block';
 }
 
 // ============================================
@@ -429,6 +430,14 @@ function generateAmortizationReportForDuration(principal, annualRate, years) {
     const monthlyRate = annualRate / 100 / 12;
     const totalMonths = years * 12;
     
+    // Store current report data for Excel export
+    window.currentReportData = {
+        principal: principal,
+        annualRate: annualRate,
+        emi: emi,
+        years: years
+    };
+    
     // Display report info
     document.getElementById('reportPrincipal').textContent = formatCurrency(principal);
     document.getElementById('reportRate').textContent = annualRate.toFixed(2) + '%';
@@ -451,6 +460,11 @@ function generateReportTable(principal, emi, monthlyRate, totalMonths) {
     let remainingPrincipal = principal;
     let totalInterestPaid = 0;
     let totalPrincipalPaid = 0;
+    
+    // Data for chart - Remaining Principal vs New EMI
+    const chartLabels = [];
+    const remainingPrincipalData = [];
+    const newEmiData = [];
 
     for (let month = 1; month <= totalMonths; month++) {
         // Calculate interest for this month
@@ -488,11 +502,128 @@ function generateReportTable(principal, emi, monthlyRate, totalMonths) {
                 <td>${formatCurrency(Math.max(0, totalInterestPaid - interestPayment))}</td>
             </tr>
         `;
+        
+        // Collect data for chart (every month or every 6 months for better visibility)
+        if (month % 6 === 0 || month === totalMonths || month === 1) {
+            chartLabels.push('Month ' + month);
+            remainingPrincipalData.push(Math.round(remainingPrincipal));
+            // Calculate what the new EMI would be if refinanced at this point
+            const remainingMonths = totalMonths - month;
+            const newEmi = remainingMonths > 0 ? (remainingPrincipal / remainingMonths) * (1 + monthlyRate) : 0;
+            newEmiData.push(Math.round(newEmi));
+        }
     }
 
     document.getElementById('reportTableBody').innerHTML = tableHTML;
     document.getElementById('reportTable').style.display = 'block';
+    document.getElementById('reportChart').style.display = 'block';
+    document.getElementById('downloadBtn').style.display = 'block';
     document.getElementById('noReport').style.display = 'none';
+    
+    // Generate chart
+    generatePrincipalComparisonChart(chartLabels, remainingPrincipalData, newEmiData);
+}
+
+function generatePrincipalComparisonChart(labels, remainingPrincipalData, newEmiData) {
+    const chartContainer = document.getElementById('emiComparisonChart');
+    const reportChartSection = document.getElementById('reportChart');
+    
+    // Destroy existing chart if it exists
+    if (window.emiChartInstance) {
+        window.emiChartInstance.destroy();
+    }
+    
+    // Create new chart
+    const ctx = chartContainer.getContext('2d');
+    window.emiChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Actual Remaining Principal',
+                    data: remainingPrincipalData,
+                    borderColor: '#ef4444', // Red
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    fill: true,
+                    tension: 0.4,
+                    borderWidth: 3,
+                    pointRadius: 5,
+                    pointBackgroundColor: '#ef4444',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2,
+                    pointHoverRadius: 7
+                },
+                {
+                    label: 'New EMI (Remaining)',
+                    data: newEmiData,
+                    borderColor: '#10b981', // Green
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    fill: true,
+                    tension: 0.4,
+                    borderWidth: 3,
+                    pointRadius: 5,
+                    pointBackgroundColor: '#10b981',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2,
+                    pointHoverRadius: 7
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top',
+                    labels: {
+                        font: { size: 12, weight: 'bold' },
+                        padding: 15,
+                        usePointStyle: true
+                    }
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    padding: 12,
+                    cornerRadius: 8,
+                    titleFont: { size: 14, weight: 'bold' },
+                    bodyFont: { size: 13 },
+                    callbacks: {
+                        label: function(context) {
+                            return context.dataset.label + ': ₹' + context.parsed.y.toLocaleString('en-IN');
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return '₹' + (value / 100000).toFixed(1) + 'L';
+                        },
+                        font: { size: 12 }
+                    },
+                    title: {
+                        display: true,
+                        text: 'Remaining Principal Amount (₹)'
+                    }
+                },
+                x: {
+                    ticks: {
+                        font: { size: 12 }
+                    },
+                    title: {
+                        display: true,
+                        text: 'Time Period'
+                    }
+                }
+            }
+        }
+    });
+    
+    reportChartSection.style.display = 'block';
 }
 
 function generateAmortizationReport() {
@@ -528,6 +659,288 @@ function generateAmortizationReport() {
     }
 }
 
+// ============================================
+// TAB 4: SIP CALCULATOR
+// ============================================
+
+/**
+ * Calculate SIP (Systematic Investment Plan) returns
+ * Formula: FV = P × (((1 + r)^n - 1) / r) × (1 + r)
+ * Where P = Monthly Investment, r = Monthly Rate, n = Number of months
+ */
+function calculateSIPReturns(monthlyAmount, annualRate, months) {
+    const monthlyRate = annualRate / 100 / 12;
+    
+    if (monthlyRate === 0) {
+        return monthlyAmount * months;
+    }
+    
+    const futureValue = monthlyAmount * 
+        (((Math.pow(1 + monthlyRate, months) - 1) / monthlyRate) * (1 + monthlyRate));
+    
+    return futureValue;
+}
+
+/**
+ * Calculate Tab 4: SIP Calculator
+ */
+function calculateTab4() {
+    const sipAmount = parseFloat(document.getElementById('sipAmount').value);
+    const sipRate = parseFloat(document.getElementById('sipRate').value);
+    const sipYears = parseFloat(document.getElementById('sipYears').value) || 0;
+    const sipMonths = parseFloat(document.getElementById('sipMonths').value) || 0;
+
+    // Validation
+    if (isNaN(sipAmount) || isNaN(sipRate)) {
+        alert('Please fill in monthly SIP amount and expected return rate');
+        return;
+    }
+
+    if (sipAmount <= 0 || sipRate < 0) {
+        alert('Please enter valid values for SIP amount and return rate');
+        return;
+    }
+
+    const totalYears = sipYears + (sipMonths / 12);
+    if (totalYears <= 0) {
+        alert('Please enter investment duration (years and/or months)');
+        return;
+    }
+
+    const totalMonths = Math.round(totalYears * 12);
+    const maturityValue = calculateSIPReturns(sipAmount, sipRate, totalMonths);
+    const totalInvested = sipAmount * totalMonths;
+    const expectedReturns = maturityValue - totalInvested;
+
+    // Display summary
+    document.getElementById('sipDisplayAmount').textContent = formatCurrency(sipAmount);
+    document.getElementById('totalInvested').textContent = formatCurrency(totalInvested);
+    document.getElementById('expectedReturns').textContent = formatCurrency(expectedReturns);
+    document.getElementById('maturityValue').textContent = formatCurrency(maturityValue);
+
+    // Generate comparison table for different durations
+    const durations = [5, 10, 15, 20, 25];
+    if (!durations.includes(totalYears)) {
+        durations.push(totalYears);
+    }
+    durations.sort((a, b) => a - b);
+
+    let tableHTML = '';
+    let bestOption = null;
+    let maxReturns = -Infinity;
+
+    durations.forEach((duration) => {
+        if (duration <= totalYears) {
+            const durationMonths = Math.round(duration * 12);
+            const durationMaturity = calculateSIPReturns(sipAmount, sipRate, durationMonths);
+            const durationInvested = sipAmount * durationMonths;
+            const durationReturns = durationMaturity - durationInvested;
+            const returnPercentage = ((durationReturns / durationInvested) * 100).toFixed(2);
+
+            const isBest = durationReturns > maxReturns;
+            if (isBest) {
+                maxReturns = durationReturns;
+                bestOption = {
+                    duration: duration,
+                    invested: durationInvested,
+                    returns: durationReturns,
+                    maturity: durationMaturity,
+                    returnPercent: returnPercentage
+                };
+            }
+
+            const rowClass = isBest ? 'best-row' : '';
+            const badge = isBest ? '<span class="badge">✓ Best</span>' : '';
+
+            const durationDisplay = Math.floor(duration) === duration ? 
+                `${Math.floor(duration)} years` : 
+                `${Math.floor(duration)}Y ${Math.round((duration - Math.floor(duration)) * 12)}M`;
+
+            tableHTML += `
+                <tr class="${rowClass}">
+                    <td>${durationDisplay}</td>
+                    <td>${formatCurrency(durationInvested)}</td>
+                    <td>${formatCurrency(durationReturns)}</td>
+                    <td>${formatCurrency(durationMaturity)}</td>
+                    <td>${returnPercentage}%</td>
+                </tr>
+            `;
+        }
+    });
+
+    document.getElementById('sipTableBody').innerHTML = tableHTML;
+
+    // Display best option
+    if (bestOption) {
+        const bestYears = Math.floor(bestOption.duration);
+        const bestMonths = Math.round((bestOption.duration - bestYears) * 12);
+        const bestDurationDisplay = bestMonths > 0 ? 
+            `${bestYears} years ${bestMonths} months` : 
+            `${bestYears} years`;
+
+        const bestOptionHTML = `
+            <p>
+                <strong>Recommended Duration:</strong> 
+                <span class="highlight">${bestDurationDisplay}</span>
+            </p>
+            <p>
+                <strong>Total Investment:</strong> 
+                <span class="highlight">${formatCurrency(bestOption.invested)}</span>
+            </p>
+            <p>
+                <strong>Expected Returns:</strong> 
+                <span class="highlight">${formatCurrency(bestOption.returns)}</span>
+            </p>
+            <p class="savings">
+                💰 Your investment grows by ${bestOption.returnPercent}% reaching ${formatCurrency(bestOption.maturity)}
+            </p>
+        `;
+        document.getElementById('bestOptionTab4').innerHTML = bestOptionHTML;
+    }
+
+    // Store data for later use
+    window.tab4Data = {
+        sipAmount: sipAmount,
+        sipRate: sipRate,
+        totalMonths: totalMonths,
+        maturityValue: maturityValue,
+        totalInvested: totalInvested
+    };
+
+    // Show results
+    document.getElementById('tab4Results').style.display = 'block';
+    window.sipChartInstance = null; // Reset chart instance
+}
+
+/**
+ * Calculate with existing amount
+ */
+function calculateWithExistingAmount() {
+    const existingAmount = parseFloat(document.getElementById('existingSipAmount').value);
+    
+    if (!window.tab4Data) {
+        alert('Please calculate SIP first');
+        return;
+    }
+
+    if (isNaN(existingAmount) || existingAmount < 0) {
+        alert('Please enter valid existing amount');
+        return;
+    }
+
+    const data = window.tab4Data;
+    const monthlyRate = data.sipRate / 100 / 12;
+    const months = data.totalMonths;
+
+    // Calculate returns on existing amount
+    const existingMaturity = existingAmount * Math.pow(1 + monthlyRate, months);
+    const existingReturns = existingMaturity - existingAmount;
+
+    // Without existing amount
+    const withoutInvested = data.totalInvested;
+    const withoutReturns = data.maturityValue - data.totalInvested;
+    const withoutMaturity = data.maturityValue;
+
+    // With existing amount
+    const withInvested = data.totalInvested + existingAmount;
+    const withReturns = withoutReturns + existingReturns;
+    const withMaturity = data.maturityValue + existingMaturity;
+
+    // Display results
+    document.getElementById('withoutExistingInvested').textContent = formatCurrency(withoutInvested);
+    document.getElementById('withoutExistingReturns').textContent = formatCurrency(withoutReturns);
+    document.getElementById('withoutExistingMaturity').textContent = formatCurrency(withoutMaturity);
+
+    document.getElementById('withExistingInvested').textContent = formatCurrency(withInvested);
+    document.getElementById('withExistingReturns').textContent = formatCurrency(withReturns);
+    document.getElementById('withExistingMaturity').textContent = formatCurrency(withMaturity);
+
+    // Recommendation
+    const additionalBenefit = withMaturity - withoutMaturity;
+    const bestOptionHTML = `
+        <p>
+            <strong>Adding Existing Amount:</strong> 
+            <span class="highlight">${formatCurrency(existingAmount)}</span>
+        </p>
+        <p>
+            <strong>Additional Returns Generated:</strong> 
+            <span class="highlight">${formatCurrency(additionalBenefit)}</span>
+        </p>
+        <p class="savings">
+            🎯 Your total maturity value increases to ${formatCurrency(withMaturity)} 
+            with ${formatCurrency(withReturns)} in expected returns
+        </p>
+    `;
+    document.getElementById('bestOptionTab4').innerHTML = bestOptionHTML;
+
+    document.getElementById('existingResults').style.display = 'block';
+}
+
+// ============================================
+// NAVIGATION AND DATA TRANSFER
+// ============================================
+
+/**
+ * Store current report data and navigate to Remaining Loan tab with pre-filled data
+ */
+function navigateToRemainingLoanWithData() {
+    // Get the current EMI calculator data
+    const principal = window.tab1Data?.principal;
+    const rate = window.tab1Data?.annualRate;
+    const emi = window.tab1Data?.emi;
+    
+    // Validate data exists
+    if (!principal || !rate || !emi) {
+        alert('Please calculate EMI first in the EMI Calculator tab');
+        return;
+    }
+    
+    // Pre-fill the Remaining Loan Calculator form
+    document.getElementById('currentPrincipal').value = principal;
+    document.getElementById('currentInterest').value = rate;
+    document.getElementById('currentEmi').value = Math.round(emi);
+    
+    // Clear the additional payment field
+    document.getElementById('additionalPayment').value = '';
+    document.getElementById('additionalResults').style.display = 'none';
+    document.getElementById('tab2Results').style.display = 'block';
+    
+    // Calculate and display the remaining loan info
+    calculateRemainingLoanBasic();
+    
+    // Switch to tab2
+    const tab2Button = document.querySelector('[data-tab="tab2"]');
+    if (tab2Button) {
+        tab2Button.click();
+    }
+    
+    // Scroll to top
+    window.scrollTo(0, 0);
+}
+
+/**
+ * Calculate basic remaining loan info without additional payment
+ */
+function calculateRemainingLoanBasic() {
+    const principal = parseFloat(document.getElementById('currentPrincipal').value);
+    const interestRate = parseFloat(document.getElementById('currentInterest').value);
+    const currentEmi = parseFloat(document.getElementById('currentEmi').value);
+    
+    if (!principal || !interestRate || !currentEmi) {
+        return;
+    }
+    
+    const monthlyRate = interestRate / 100 / 12;
+    const monthsToClose = calculateMonthsToClose(principal, monthlyRate, currentEmi);
+    const years = (monthsToClose / 12).toFixed(1);
+    
+    document.getElementById('currentEmiDisplay').textContent = formatCurrency(currentEmi);
+    document.getElementById('yearsToComplete').textContent = years;
+}
+
+/**
+ * Download amortization table as Excel file
+ */
 // ============================================
 // TAB SWITCHING
 // ============================================
